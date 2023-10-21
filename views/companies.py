@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from flask import Blueprint, jsonify, request
 from extensions import db
@@ -47,6 +48,7 @@ def company_register():
 
         # Commit changes
         db.session.commit()
+        time.sleep(5)
         return jsonify({'success': 'Company and evaluations added successfully', 'company_id': company_id}), 201
 
     except IntegrityError:
