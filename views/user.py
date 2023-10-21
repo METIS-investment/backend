@@ -13,6 +13,7 @@ user_bp = Blueprint('user', __name__)
 @user_bp.route('/signup', methods=['POST'])
 @authorize
 def signup():
+    print("CALL - signup")
     try:
         data = request.get_json()
         user = User.query.get(request.uid)
@@ -72,6 +73,7 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
 
+        print("FINISHED - signup")
         return jsonify({"message": "User created successfully."}), 201
 
     except Exception as e:
@@ -82,6 +84,7 @@ def signup():
 @user_bp.route('/finish_signup', methods=['POST'])
 @authorize
 def finish_signup():
+    print("CALL - finish signup")
     try:
         user_id = request.uid
         user = User.query.get(user_id)
@@ -92,6 +95,7 @@ def finish_signup():
         user.finish_signup = True
         db.session.commit()
 
+        print("FINISH - finish signup")
         return jsonify({"message": "Signup process completed."}), 200
 
     except IntegrityError:
