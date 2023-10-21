@@ -10,7 +10,80 @@ from flask import request, jsonify, Blueprint
 statistics_bp = Blueprint('statistics', __name__)
 
 
-@statistics_bp.route('/investment/statistics', methods=['GET'])
+@statistics_bp.route('/investment/balance', methods=['GET'])
+@authorize
+def total_balance_user():
+    try:
+        user_id = request.uid
+
+        # Retrieve stripe_id and billable status from the database
+        user = User.query.filter_by(id=user_id).first()
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if not user.billable:
+            return jsonify({'error': 'User is not billable'}), 403
+
+        stripe_id = user.stripe_id
+
+        # Get time interval parameters from request
+        start_year = int(request.args.get('start_year'))
+        start_month = int(request.args.get('start_month'))
+        end_year = int(request.args.get('end_year'))
+        end_month = int(request.args.get('end_month'))
+
+        # Calculate user's profit
+        user_investment, monthly_investment = user_investment_range(start_year, start_month, end_year, end_month, stripe_id)
+        user_profit, monthly_profits = user_profit_range(start_year, start_month, end_year, end_month, stripe_id)
+        balance = user_investment+user_profit
+        monthly_balance = [a_i + b_i for a_i, b_i in zip(monthly_investment, monthly_profits)]
+
+        if user_profit is not None:
+            return jsonify({'total_balance': balance, 'monthly_balance': monthly_balance}), 200
+        else:
+            return jsonify({'error': 'An error occurred while calculating user profit'}), 500
+
+    except Exception as e:
+        return jsonify({'error': f"An error occurred: {str(e)}"}), 500
+
+
+@statistics_bp.route('/investment/investment', methods=['GET'])
+@authorize
+def total_investment_user():
+    try:
+        user_id = request.uid
+
+        # Retrieve stripe_id and billable status from the database
+        user = User.query.filter_by(id=user_id).first()
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if not user.billable:
+            return jsonify({'error': 'User is not billable'}), 403
+
+        stripe_id = user.stripe_id
+
+        # Get time interval parameters from request
+        start_year = int(request.args.get('start_year'))
+        start_month = int(request.args.get('start_month'))
+        end_year = int(request.args.get('end_year'))
+        end_month = int(request.args.get('end_month'))
+
+        # Calculate user's profit
+        user_profit, monthly_profits = user_investment_range(start_year, start_month, end_year, end_month, stripe_id)
+
+        if user_profit is not None:
+            return jsonify({'total_investment': user_profit, 'monthly_investments': monthly_profits}), 200
+        else:
+            return jsonify({'error': 'An error occurred while calculating user profit'}), 500
+
+    except Exception as e:
+        return jsonify({'error': f"An error occurred: {str(e)}"}), 500
+
+
+@statistics_bp.route('/investment/profits', methods=['GET'])
 @authorize
 def get_investment_statistics():
     try:
@@ -34,10 +107,10 @@ def get_investment_statistics():
         end_month = int(request.args.get('end_month'))
 
         # Calculate user's profit
-        user_profit = calculate_user_profit(start_year, start_month, end_year, end_month, stripe_id)
+        user_profit, monthly_profits = user_profit_range(start_year, start_month, end_year, end_month, stripe_id)
 
         if user_profit is not None:
-            return jsonify({'user_profit': user_profit}), 200
+            return jsonify({'user_profit': user_profit, 'monthly_profits': monthly_profits}), 200
         else:
             return jsonify({'error': 'An error occurred while calculating user profit'}), 500
 
@@ -46,19 +119,22 @@ def get_investment_statistics():
 
 
 #######    utilities     #######
-def calculate_user_profit(start_year, start_month, end_year, end_month, stripe_customer_id):
+def user_profit_range(start_year, start_month, end_year, end_month, stripe_customer_id):
     try:
         # Initialize variables
         total_user_profit = 0
+        monthly_profits = {}
         current_year = start_year
         current_month = start_month
 
         while (current_year, current_month) <= (end_year, end_month):
             # Calculate the user's gain for the current month
-            user_gain = calculate_user_gain(current_year, current_month, stripe_customer_id)
+            user_gain = user_profit_in_month(current_year, current_month, stripe_customer_id)
 
             if user_gain is not None:
                 total_user_profit += user_gain
+                monthly_key = f"{current_year}-{str(current_month).zfill(2)}"
+                monthly_profits[monthly_key] = user_gain
 
             # Increment the current month and check for year rollover
             current_month += 1
@@ -66,23 +142,53 @@ def calculate_user_profit(start_year, start_month, end_year, end_month, stripe_c
                 current_month = 1
                 current_year += 1
 
-        return total_user_profit
+        return total_user_profit, monthly_profits
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
-        return None
+        return None, None
 
 
-def calculate_user_gain(year, month, stripe_customer_id):
+def user_investment_range(start_year, start_month, end_year, end_month, stripe_customer_id):
+    try:
+        # Initialize variables
+        total_user_profit = 0
+        monthly_profits = {}
+        current_year = start_year
+        current_month = start_month
+
+        while (current_year, current_month) <= (end_year, end_month):
+            # Calculate the user's gain for the current month
+            user_gain = user_investment_in_month(current_year, current_month, stripe_customer_id)
+
+            if user_gain is not None:
+                total_user_profit += user_gain
+                monthly_key = f"{current_year}-{str(current_month).zfill(2)}"
+                monthly_profits[monthly_key] = user_gain
+
+            # Increment the current month and check for year rollover
+            current_month += 1
+            if current_month > 12:
+                current_month = 1
+                current_year += 1
+
+        return total_user_profit, monthly_profits
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return None, None
+
+
+def user_profit_in_month(year, month, stripe_customer_id):
     try:
         # Get the total gains for the month
-        total_gains = calculate_total_gains(year, month)  # Assuming you have a function that does this
+        total_gains = total_profit_in_month(year, month)
 
         # Calculate the share of gains allocated to users (60% of total gains)
         allocated_gains = 0.6 * total_gains
 
         # Calculate the user's share of payments for the month
-        user_payment_fraction = calculate_user_share(year, month, stripe_customer_id)  # Assuming you have implemented this
+        user_payment_fraction = user_profit_share_in_month(year, month, stripe_customer_id)  # Assuming you have implemented this
 
         # Calculate the user's gain for the month, as part of the 60% of total gains
         user_gain = user_payment_fraction * allocated_gains
@@ -94,7 +200,74 @@ def calculate_user_gain(year, month, stripe_customer_id):
         return None
 
 
-def calculate_user_share(year, month, stripe_customer_id):
+def user_investment_in_month(year, month, stripe_customer_id):
+    try:
+        # Define the start and end dates for the given month and year
+        start_date = datetime(year, month, 1)
+        end_date = datetime(year, month, calendar.monthrange(year, month)[1])
+
+        # Convert these dates to Unix timestamps
+        start_timestamp = int(start_date.timestamp())
+        end_timestamp = int(end_date.timestamp())
+
+        # Initialize total payment variable
+        total_payment = 0
+
+        # Fetch Stripe charges for the given customer ID and date range
+        charges = stripe.Charge.list(
+            customer=stripe_customer_id,
+            created={
+                'gte': start_timestamp,
+                'lte': end_timestamp
+            }
+        )
+
+        # Sum up all the payments made by the customer
+        for charge in charges:
+            if charge['status'] == 'succeeded':  # Only consider successful charges
+                total_payment += charge['amount']
+
+        return total_payment
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return None
+
+
+def total_investment_in_month(year, month):
+    try:
+        # Define the start and end dates for the given month and year
+        start_date = datetime(year, month, 1)
+        end_date = datetime(year, month, calendar.monthrange(year, month)[1])
+
+        # Convert these dates to Unix timestamps
+        start_timestamp = int(start_date.timestamp())
+        end_timestamp = int(end_date.timestamp())
+
+        # Initialize total payment variable
+        total_payment = 0
+
+        # Fetch Stripe charges for the given customer ID and date range
+        charges = stripe.Charge.list(
+            created={
+                'gte': start_timestamp,
+                'lte': end_timestamp
+            }
+        )
+
+        # Sum up all the payments made by the customer
+        for charge in charges:
+            if charge['status'] == 'succeeded':  # Only consider successful charges
+                total_payment += charge['amount']
+
+        return total_payment
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return None
+
+
+def user_profit_share_in_month(year, month, stripe_customer_id):
     try:
         # Define the date range for the given month
         start_date = datetime(year, month, 1)
@@ -102,20 +275,11 @@ def calculate_user_share(year, month, stripe_customer_id):
         start_timestamp = int(start_date.timestamp())
         end_timestamp = int(end_date.timestamp())
 
-        # Fetch all transactions to us for that month
-        all_transactions = stripe.Charge.list(created={"gte": start_timestamp, "lt": end_timestamp})
-
-        # Fetch all transactions from that user for that month
-        user_transactions = stripe.Charge.list(
-            customer=stripe_customer_id,
-            created={"gte": start_timestamp, "lt": end_timestamp}
-        )
-
         # Calculate the sum of all transactions to us
-        total_amount = sum(charge['amount'] for charge in all_transactions)
+        total_amount = total_investment_in_month(year, month)
 
         # Calculate the sum of all transactions from that user to us
-        user_amount = sum(charge['amount'] for charge in user_transactions)
+        user_amount = user_investment_in_month(year, month, stripe_customer_id)
 
         # Compute the fraction of the user's payments to us
         fraction = user_amount / total_amount if total_amount != 0 else 0
@@ -127,7 +291,7 @@ def calculate_user_share(year, month, stripe_customer_id):
         return None
 
 
-def calculate_value_gain(year, month):
+def total_profit_in_month(year, month):
     try:
         # Initialize total gain variable
         total_gain = 0
