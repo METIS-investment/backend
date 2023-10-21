@@ -37,7 +37,7 @@ def total_balance_user():
         user_investment, monthly_investment = user_investment_range(start_year, start_month, end_year, end_month, stripe_id)
         user_profit, monthly_profits = user_profit_range(start_year, start_month, end_year, end_month, stripe_id)
         balance = user_investment+user_profit
-        monthly_balance = [a_i + b_i for a_i, b_i in zip(monthly_investment, monthly_profits)]
+        monthly_balance = {k: monthly_investment.get(k, 0) + monthly_profits.get(k, 0) for k in set(monthly_investment) | set(monthly_profits)}
 
         if user_profit is not None:
             return jsonify({'total_balance': balance, 'monthly_balance': monthly_balance}), 200
