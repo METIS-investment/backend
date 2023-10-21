@@ -43,8 +43,8 @@ def signup():
         zip_code = data.get('zip_code')
 
         # Fetch the user from Firebase
-        #firebase_user = auth.get_user(request.uid)
-        email = "info@simonsure.co"#firebase_user.email  # user's email
+        firebase_user = auth.get_user(request.uid)
+        email = firebase_user.email  # user's email
 
         # Create Stripe customer
         stripe_customer = stripe.Customer.create(
@@ -66,7 +66,7 @@ def signup():
             city=city,
             zip_code=zip_code,
             country=country,
-            billable=False,
+            billable=True,
             finish_signup=False
         )
 
@@ -108,11 +108,11 @@ def finish_signup():
 
 
 @user_bp.route('/payment_method', methods=['POST'])
-#@authorize
+@authorize
 def update_payment_details():
     try:
         # Get user by UID
-        user_id = "1"#request.uid
+        user_id = request.uid
         user = User.query.get(user_id)
 
         if not user:

@@ -14,7 +14,9 @@ def authorize(f):
 
         token = auth_header.split('Bearer ')[1]
         try:
+            #print(token)
             decoded_token = auth.verify_id_token(token)
+            #print(decoded_token)
             request.uid = decoded_token['uid']
         except Exception as e:
             return jsonify({'message': 'Invalid or expired token'}), 401
