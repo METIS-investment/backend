@@ -6,8 +6,8 @@ from firebase_admin import auth
 def authorize(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        request.uid = "1"
-        return f(*args, **kwargs)
+        #request.uid = "1"
+        #return f(*args, **kwargs)
         auth_header = request.headers.get('Authorization')
         if not auth_header or 'Bearer ' not in auth_header:
             return jsonify({'message': 'Missing or invalid token'}), 401
