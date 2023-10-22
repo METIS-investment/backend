@@ -34,8 +34,13 @@ def one_time_investment():
             currency="eur",
             customer=user.stripe_id
         )
+        print("client secret")
+        print(payment_intent['client_secret'])
+        re = {
+            "pi": payment_intent['client_secret']
+        }
 
-        return jsonify({"payment_intent": payment_intent['client_secret']}), 201
+        return jsonify(re), 201
 
     except stripe.error.StripeError as e:
         return jsonify({"error": f"Stripe error: {str(e)}"}), 400

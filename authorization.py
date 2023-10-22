@@ -13,6 +13,7 @@ def authorize(f):
             return jsonify({'message': 'Missing or invalid token'}), 401
 
         token = auth_header.split('Bearer ')[1]
+        print(token)
         try:
             #print(token)
             decoded_token = auth.verify_id_token(token)

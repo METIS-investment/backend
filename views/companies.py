@@ -5,6 +5,7 @@ from extensions import db
 from authorization import authorize
 from sqlalchemy.exc import IntegrityError
 from models import Company, Evaluation  # Add this import
+import requests, json, math
 
 companies_bp = Blueprint('companies', __name__)
 
